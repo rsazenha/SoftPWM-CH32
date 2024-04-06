@@ -1,18 +1,3 @@
-/*
-|| @author         Raul Azenha <rsazenha@gmail.com>
-|| @contribution   
-|| @url            http://azenha.org/
-||
-|| @description
-|| | A Software PWM Library for CH32V003 with Lib "ch32v003fun"
-||
-|| @name Software PWM Library
-|| @type Library
-|| @target CH32V003
-||
-|| @version 0.0.1
-||
-*/
 #ifndef SOFTPWM_H
 #define SOFTPWM_H
 
