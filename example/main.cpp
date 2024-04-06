@@ -1,7 +1,10 @@
 #include <ch32v003fun.h>
 #include "../src/SoftPWM-CH32.h"
 
-int main(){
+int main()
+{
+    SystemInit();
+
     // Needed to SoftPWM configure TIMER
     SoftPWMInitialize();
 
@@ -10,10 +13,11 @@ int main(){
 
     uint8_t Value = 0;
 
-    while(true){
+    while (true)
+    {
         // Define a value for pin
         SoftPWMWrite(PA1, Value);
         Value++;
-        Delay_Ms(100);
+        Delay_Ms(10);
     }
 }

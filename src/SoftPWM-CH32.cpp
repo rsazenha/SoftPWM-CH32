@@ -1,6 +1,22 @@
 #include <ch32v003fun.h>
 #include "SoftPWM-CH32.h"
 
+#ifdef FASTMODE
+
+struct PinChain
+{
+    uint8_t PinIndex;
+    PinChain *NextPin;
+};
+
+// List of pointers for PinChain (Position in chain is the pin value)
+PinChain *PinList[256];
+
+// Cache of PinChain to avoid use malloc
+PinChain PinChainCache[SoftPWMMaxChannels];
+
+#endif
+
 // Mantém o incremento da interrupção (8 bits)
 uint8_t SoftPWM_Count;
 
@@ -56,6 +72,10 @@ void Timer2_Init(uint16_t Value, uint16_t Prescaler)
 
 void SoftPWMInitialize()
 {
+#ifdef DEBUG
+    SetPinOutputAndLow(DEBUG_GPIONUM, DEBUG_PORT, DEBUG_PIN);
+#endif
+
     SoftPWM_Count = 0;
 
     NextEmptyChannel = 0;
@@ -80,9 +100,42 @@ void SoftPWMWrite(uint8_t Pin, uint8_t Value)
         if (SoftPWM_PIN[i] == Pin)
             SoftPWM_Value[i] = Value;
     }
+
+#ifdef FASTMODE
+
+    // Clean all list
+    for (int i = 0; i < 256; i++)
+        PinList[i] = 0;
+
+    // Rebuild list
+    for (uint32_t i = 0; i < NextEmptyChannel; i++)
+    {
+        if (SoftPWM_Value[i] > 0)
+        {
+            PinChainCache[i].PinIndex = i;
+            PinChainCache[i].NextPin = 0;
+
+            if (PinList[SoftPWM_Value[i]] == 0)
+            {
+                PinList[SoftPWM_Value[i]] = &PinChainCache[i];
+            }
+            else
+            {
+                // Search next empty PinPointer
+                PinChain *NextPinPointer = PinList[SoftPWM_Value[i]];
+
+                while (NextPinPointer->NextPin != 0)
+                    NextPinPointer = NextPinPointer->NextPin;
+
+                NextPinPointer->NextPin = &PinChainCache[i];
+            }
+        }
+    }
+
+#endif
 }
 
-static uint8_t gpioForPin(uint8_t pin)
+uint8_t gpioForPin(uint8_t pin)
 {
     if (pin < 2)
     {
@@ -98,7 +151,7 @@ static uint8_t gpioForPin(uint8_t pin)
     }
 }
 
-static GPIO_TypeDef *gpioRegister(uint8_t gpio)
+GPIO_TypeDef *gpioRegister(uint8_t gpio)
 {
     if (gpio == 0)
     {
@@ -114,7 +167,7 @@ static GPIO_TypeDef *gpioRegister(uint8_t gpio)
     }
 }
 
-static uint8_t gpioPin(uint8_t gpio, uint8_t pin)
+uint8_t gpioPin(uint8_t gpio, uint8_t pin)
 {
     if (gpio == 0)
     {
@@ -166,8 +219,6 @@ void SoftPWMConfigurePIN(uint8_t Pin)
 
 volatile uint8_t Value;
 
-// void TIM2_IRQHandler(void) __attribute__((interrupt));
-// void TIM2_IRQHandler(void) __attribute__((interrupt("WCH-Interrupt-fast")));
 extern "C" void TIM2_IRQHandler(void) __attribute__((interrupt));
 extern "C" void TIM2_IRQHandler(void)
 {
@@ -175,14 +226,55 @@ extern "C" void TIM2_IRQHandler(void)
     TIM2->INTFR = (uint16_t)~TIM_IT_Update;
     TIM2->CNT = 0;
 
-    // digitalWrite(D0, HIGH);
-    // GPIOD->BSHR = ((uint32_t)1 << 0); // For DEBUG
-
-    // ---
-
     SoftPWM_Count++;
 
-    // 6% ~~ 26% 3,2us ~ 11,4us (39,4)
+#ifdef DEBUG
+    DEBUG_PORT->BSHR = ((uint32_t)1 << DEBUG_PIN); // For DEBUG
+#endif
+
+    // ---
+    //
+    // Benchmark
+    //
+    // Total period between irq: 39.4us * 256 = 10086.4 (total)
+
+#ifdef FASTMODE
+
+    // FastMode method
+    // 1 ch  = 179.8us (total) 1.8%
+    // 4 ch  = 181.5us (total) 1.8%
+    // 18 ch = 187.3us (total) 1.9%
+    if (SoftPWM_Count == 0)
+    {
+        // Turn on all pins, except pins with value = 0
+        for (uint32_t i = 0; i < NextEmptyChannel; i++)
+            if (SoftPWM_Value[i] > 0)
+                SoftPWM_PINFastPort[i]->BSHR = ((uint32_t)1 << SoftPWM_PINFast[i]);
+            else
+                // Turn OFF because his value is zero
+                SoftPWM_PINFastPort[i]->BSHR = ((uint32_t)1 << (SoftPWM_PINFast[i] + 16));
+    }
+    else
+    {
+        PinChain *NextPinPointer = PinList[SoftPWM_Count - 1];
+
+        while (NextPinPointer != 0)
+        {
+            PinChain CurrentPin = *NextPinPointer;
+
+            // Turn OFF Pin by Index
+            SoftPWM_PINFastPort[CurrentPin.PinIndex]->BSHR = ((uint32_t)1 << (SoftPWM_PINFast[CurrentPin.PinIndex] + 16));
+
+            NextPinPointer = CurrentPin.NextPin;
+        }
+    }
+
+#else
+
+    // Traditional method
+    // 1 ch  =  1.5us  3.8% of CPU use
+    // 4 ch  =  3.2us  8.1% of CPU use
+    // 18 ch = 11.4us 28.9% of CPU use
     if (SoftPWM_Count == 0)
     {
         for (uint32_t i = 0; i < NextEmptyChannel; i++)
@@ -198,7 +290,11 @@ extern "C" void TIM2_IRQHandler(void)
                 SoftPWM_PINFastPort[i]->BSHR = ((uint32_t)1 << (SoftPWM_PINFast[i] + 16));
     }
 
+#endif
+
     // ---
-    // digitalWrite(D0, LOW);
-    // GPIOD->BSHR = ((uint32_t)1 << 0 + 16); // For DEBUG
+
+#ifdef DEBUG
+    DEBUG_PORT->BSHR = ((uint32_t)1 << (DEBUG_PIN + 16)); // For DEBUG
+#endif
 }
