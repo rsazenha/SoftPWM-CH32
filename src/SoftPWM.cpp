@@ -134,7 +134,7 @@ static uint8_t gpioPin(uint8_t gpio, uint8_t pin)
 {
     if (gpio == 0)
     {
-        return pin;
+        return pin + 1;
     }
     else if (gpio == 2)
     {
@@ -192,7 +192,7 @@ extern "C" void TIM2_IRQHandler(void)
     TIM2->CNT = 0;
 
     // digitalWrite(D0, HIGH);
-    GPIOD->BSHR = ((uint32_t)1 << 0); // For DEBUG
+    // GPIOD->BSHR = ((uint32_t)1 << 0); // For DEBUG
 
     // ---
 
@@ -216,5 +216,5 @@ extern "C" void TIM2_IRQHandler(void)
 
     // ---
     // digitalWrite(D0, LOW);
-    GPIOD->BSHR = ((uint32_t)1 << 0 + 16); // For DEBUG
+    // GPIOD->BSHR = ((uint32_t)1 << 0 + 16); // For DEBUG
 }
