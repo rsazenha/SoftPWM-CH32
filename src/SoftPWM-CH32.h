@@ -16,8 +16,6 @@
 #ifndef SOFTPWM_H
 #define SOFTPWM_H
 
-#include <cstdint>
-
 // Define a quantidade máximas de canais
 #define SoftPWMMaxChannels 18
 
