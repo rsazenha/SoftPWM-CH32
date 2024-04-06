@@ -15,7 +15,7 @@
 */
 
 #include <ch32v003fun.h>
-#include "SoftPWM.h"
+#include "SoftPWM-CH32.h"
 
 // Mantém o incremento da interrupção (8 bits)
 uint8_t SoftPWM_Count;

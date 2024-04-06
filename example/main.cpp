@@ -1,5 +1,5 @@
 #include <ch32v003fun.h>
-#include "../src/SoftPWM.h"
+#include "../src/SoftPWM-CH32.h"
 
 int main(){
     // Needed to SoftPWM configure TIMER

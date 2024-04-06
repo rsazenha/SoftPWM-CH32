@@ -1,6 +1,6 @@
 {
 	"name": "SoftPWM-CH32",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "A SoftPWM library for CH32V003 with CH32V003FUN",
 	"keywords": "pwm, ch32, softpwm, microcontroler, risc-v, ch32v003",
 	"repository": {
